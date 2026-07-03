@@ -1,3 +1,5 @@
+import os
+import uuid
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -6,11 +8,10 @@ from sqlalchemy import create_engine, Column, Integer, Decimal, String, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-SERVER_SOURCE = '' 
+# ----------------------------------------------------
+# 1. CONEXIÓN 
+# ----------------------------------------------------
+SERVER_SOURCE = 'local'  
 
 if SERVER_SOURCE == 'local':
     root_path = 'https://localhost/atlastest/'
@@ -36,6 +37,18 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# ----------------------------------------------------
+# 2. MODELOS DE BASE DE DATOS 
+# ----------------------------------------------------
+class PropertyDB(Base):
+    __tablename__ = "properties_tb"
+    
+    prop_id = Column(Integer, primary_key=True, index=True)
+    prop_uuid = Column(String(36), unique=True, nullable=False)
+    prop_slug = Column(String(100), unique=True, nullable=False)
+    prop_name = Column(String(150), nullable=False)
+    prop_price = Column(Decimal(10, 2), nullable=True)
+
 class HotspotDB(Base):
     __tablename__ = "hotspots_tb"
     
@@ -46,6 +59,14 @@ class HotspotDB(Base):
     hots_type = Column(Enum('scene', 'info'), nullable=False)
     hots_text = Column(String(255), nullable=False)
     hots_target_scene_key = Column(String(50), nullable=True)
+
+# ----------------------------------------------------
+# 3. ESQUEMAS DE VALIDACIÓN (Pydantic)
+# ----------------------------------------------------
+class PropertyCreate(BaseModel):
+    prop_name: str
+    prop_price: float
+    prop_slug: str
 
 class HotspotCreate(BaseModel):
     hots_scene_id: int
@@ -62,6 +83,9 @@ def get_db():
     finally:
         db.close()
 
+# ----------------------------------------------------
+# 4. INICIALIZACIÓN DE FASTAPI Y MIDDLEWARES
+# ----------------------------------------------------
 app = FastAPI(title="Administrador de Recorridos 360")
 
 app.add_middleware(
@@ -72,6 +96,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ----------------------------------------------------
+# 5. ENDPOINTS DE LA API (Datos)
+# ----------------------------------------------------
+
+@app.get("/api/properties")
+def get_properties(db: Session = Depends(get_db)):
+    return db.query(PropertyDB).all()
+
+@app.post("/api/properties")
+def create_property(prop: PropertyCreate, db: Session = Depends(get_db)):
+    nuevo_uuid = str(uuid.uuid4())
+    
+    nueva_propiedad = PropertyDB(
+        prop_uuid=nuevo_uuid,
+        prop_slug=prop.prop_slug.lower().strip().replace(" ", "-"),
+        prop_name=prop.prop_name,
+        prop_price=prop.prop_price
+    )
+    try:
+        db.add(nueva_propiedad)
+        db.commit()
+        db.refresh(nueva_propiedad)
+        return {"status": "success", "data": nueva_propiedad}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="El identificador único (Slug) o Nombre ya existe.")
+
+# Guardar un nuevo Hotspot
 @app.post("/api/hotspots")
 def create_hotspot(hotspot: HotspotCreate, db: Session = Depends(get_db)):
     nuevo_hotspot = HotspotDB(
@@ -86,6 +138,15 @@ def create_hotspot(hotspot: HotspotCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(nuevo_hotspot)
     return {"status": "success", "message": "Hotspot guardado perfectamente", "id": nuevo_hotspot.hots_id}
+
+# ----------------------------------------------------
+# 6. RUTAS DE INTERFAZ GRÁFICA (Vistas HTML)
+# ----------------------------------------------------
+
+@app.get("/admin/dashboard", response_class=HTMLResponse)
+def admin_dashboard():
+    with open("dashboard.html", "r", encoding="utf-8") as f:
+        return f.read()
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_panel():
