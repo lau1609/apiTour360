@@ -24,7 +24,7 @@ else:
     db_name = "u960560109_prueba"
     db_user = "u960560109_test"
     db_pass = "prueba.BD2026"
-    db_host = "localhost" 
+    db_host = "srv1442.hstgr.io" 
 
 DATABASE_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}/{db_name}"
 
