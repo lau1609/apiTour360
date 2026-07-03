@@ -27,18 +27,15 @@ else:
 
 DATABASE_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}/{db_name}"
 
-# 4. Creamos el "equivalente" a tu objeto $connectMySql de mysqli
 engine = create_engine(
     DATABASE_URL,
-    pool_recycle=3600, # Evita el error "MySQL server has gone away" en la VM
-    pool_pre_ping=True # Verifica que la conexión siga viva antes de usarla
+    pool_recycle=3600, 
+    pool_pre_ping=True
 )
 
-# Creamos la fábrica de sesiones para que FastAPI interactúe con la BD
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 2. Modelo SQLAlchemy para la tabla hotspots_tb
 class HotspotDB(Base):
     __tablename__ = "hotspots_tb"
     
@@ -50,7 +47,6 @@ class HotspotDB(Base):
     hots_text = Column(String(255), nullable=False)
     hots_target_scene_key = Column(String(50), nullable=True)
 
-# 3. Esquema de validación Pydantic para recibir datos desde el Front
 class HotspotCreate(BaseModel):
     hots_scene_id: int
     hots_pitch: float
@@ -59,7 +55,6 @@ class HotspotCreate(BaseModel):
     hots_text: str
     hots_target_scene_key: str = None
 
-# Dependencia para obtener la sesión de BD en cada petición
 def get_db():
     db = SessionLocal()
     try:
@@ -67,10 +62,8 @@ def get_db():
     finally:
         db.close()
 
-# 4. Inicializar FastAPI
 app = FastAPI(title="Administrador de Recorridos 360")
 
-# Habilitar CORS para que el Front pueda comunicarse sin bloqueos
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -79,7 +72,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Endpoint API: Guardar nuevo Hotspot
 @app.post("/api/hotspots")
 def create_hotspot(hotspot: HotspotCreate, db: Session = Depends(get_db)):
     nuevo_hotspot = HotspotDB(
@@ -95,7 +87,6 @@ def create_hotspot(hotspot: HotspotCreate, db: Session = Depends(get_db)):
     db.refresh(nuevo_hotspot)
     return {"status": "success", "message": "Hotspot guardado perfectamente", "id": nuevo_hotspot.hots_id}
 
-# Endpoint para servir la interfaz del Administrador (Herramienta de captura)
 @app.get("/admin", response_class=HTMLResponse)
 def admin_panel():
     with open("admin.html", "r", encoding="utf-8") as f:
