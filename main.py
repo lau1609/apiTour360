@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, Decimal, String, Enum
+from sqlalchemy import create_engine, Column, Integer, Numeric, String, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
@@ -47,15 +47,15 @@ class PropertyDB(Base):
     prop_uuid = Column(String(36), unique=True, nullable=False)
     prop_slug = Column(String(100), unique=True, nullable=False)
     prop_name = Column(String(150), nullable=False)
-    prop_price = Column(Decimal(10, 2), nullable=True)
+    prop_price = Column(Numeric(10, 2), nullable=True)
 
 class HotspotDB(Base):
     __tablename__ = "hotspots_tb"
     
     hots_id = Column(Integer, primary_key=True, index=True)
     hots_scene_id = Column(Integer, nullable=False)
-    hots_pitch = Column(Decimal(5, 2), nullable=False)
-    hots_yaw = Column(Decimal(5, 2), nullable=False)
+    hots_pitch = Column(Numeric(5, 2), nullable=False)
+    hots_yaw = Column(Numeric(5, 2), nullable=False)
     hots_type = Column(Enum('scene', 'info'), nullable=False)
     hots_text = Column(String(255), nullable=False)
     hots_target_scene_key = Column(String(50), nullable=True)
