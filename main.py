@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-from sqlalchemy import create_instance, create_engine, Column, Integer, Decimal, String, Enum
+from sqlalchemy import create_engine, Column, Integer, Decimal, String, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
