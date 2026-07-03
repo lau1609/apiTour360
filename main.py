@@ -11,22 +11,12 @@ from sqlalchemy.orm import sessionmaker, Session, declarative_base
 # ----------------------------------------------------
 # 1. CONEXIÓN 
 # ----------------------------------------------------
-SERVER_SOURCE = 'local'  
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_NAME = os.getenv("DB_NAME", "pueblost_bd")
 
-if SERVER_SOURCE == 'local':
-    root_path = 'https://localhost/atlastest/'
-    db_name = "pueblost_bd"
-    db_user = "root"
-    db_pass = ""     
-    db_host = "localhost"
-else:
-    root_path = 'https://sichitur.org/' 
-    db_name = "u960560109_prueba"
-    db_user = "u960560109_test"
-    db_pass = "prueba.BD2026"
-    db_host = "srv1442.hstgr.io" 
-
-DATABASE_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}/{db_name}"
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
 
 engine = create_engine(
     DATABASE_URL,
