@@ -6,17 +6,27 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, Numeric, String, Enum
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
+from sqlalchemy.orm import sessionmaker, Session
 
 # ----------------------------------------------------
 # 1. CONEXIÓN 
 # ----------------------------------------------------
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASS = os.getenv("DB_PASS", "")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_NAME = os.getenv("DB_NAME", "pueblost_bd")
+SERVER_SOURCE = 'local'  # Cambia a 'production' o usa os.getenv en Coolify
 
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
+if SERVER_SOURCE == 'local':
+    root_path = 'https://localhost/atlastest/'
+    db_name = "pueblost_bd"
+    db_user = "root"
+    db_pass = ""     
+    db_host = "localhost"
+else:
+    root_path = 'https://sichitur.org/' 
+    db_name = "u960560109_prueba"
+    db_user = "u960560109_test"
+    db_pass = "prueba.BD2026"
+    db_host = "srv1442.hstgr.io" 
+
+DATABASE_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}/{db_name}"
 
 engine = create_engine(
     DATABASE_URL,
@@ -43,12 +53,15 @@ class HotspotDB(Base):
     __tablename__ = "hotspots_tb"
     
     hots_id = Column(Integer, primary_key=True, index=True)
-    hots_scene_id = Column(Integer, nullable=False)
+    hots_scene_id = Column(Integer, nullable=False)  # Guarda el prop_id del lugar origen
     hots_pitch = Column(Numeric(5, 2), nullable=False)
     hots_yaw = Column(Numeric(5, 2), nullable=False)
     hots_type = Column(Enum('scene', 'info'), nullable=False)
-    hots_text = Column(String(255), nullable=False)
-    hots_target_scene_key = Column(String(50), nullable=True)
+    hots_text = Column(String(255), nullable=False)  # El título/descripción
+    hots_target_scene_key = Column(String(50), nullable=True)  # ID o slug del destino si es tipo 'scene'
+
+# Crear tablas automáticamente en la base de datos si no existen
+Base.metadata.create_all(bind=engine)
 
 # ----------------------------------------------------
 # 3. ESQUEMAS DE VALIDACIÓN (Pydantic)
@@ -59,12 +72,12 @@ class PropertyCreate(BaseModel):
     prop_slug: str
 
 class HotspotCreate(BaseModel):
-    hots_scene_id: int
+    prop_id: int
+    hots_title: str
+    hots_type: str
     hots_pitch: float
     hots_yaw: float
-    hots_type: str
-    hots_text: str
-    hots_target_scene_key: str = None
+    target_prop_id: int = None
 
 def get_db():
     db = SessionLocal()
@@ -113,21 +126,60 @@ def create_property(prop: PropertyCreate, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status_code=400, detail="El identificador único (Slug) o Nombre ya existe.")
 
-# Guardar un nuevo Hotspot
+# --- NUEVOS ENDPOINTS PARA HOTSPOTS ---
+
+# 1. Enlistar todos los Hotspots de una propiedad específica
+@app.get("/api/properties/{prop_id}/hotspots")
+def get_hotspots_by_property(prop_id: int, db: Session = Depends(get_db)):
+    hotspots = db.query(HotspotDB).filter(HotspotDB.hots_scene_id == prop_id).all()
+    
+    # Formateamos la respuesta para que el JS la lea directamente sin modificar sus llaves
+    respuesta_js = []
+    for h in hotspots:
+        respuesta_js.append({
+            "hots_id": h.hots_id,
+            "prop_id": h.hots_scene_id,
+            "hots_title": h.hots_text,
+            "hots_type": h.hots_type,
+            "hots_pitch": float(h.hots_pitch),
+            "hots_yaw": float(h.hots_yaw),
+            "target_prop_id": int(h.hots_target_scene_key) if h.hots_target_scene_key else None
+        })
+    return respuesta_js
+
+# 2. Guardar un nuevo Hotspot
 @app.post("/api/hotspots")
 def create_hotspot(hotspot: HotspotCreate, db: Session = Depends(get_db)):
     nuevo_hotspot = HotspotDB(
-        hots_scene_id=hotspot.hots_scene_id,
+        hots_scene_id=hotspot.prop_id,
         hots_pitch=hotspot.hots_pitch,
         hots_yaw=hotspot.hots_yaw,
         hots_type=hotspot.hots_type,
-        hots_text=hotspot.hots_text,
-        hots_target_scene_key=hotspot.hots_target_scene_key
+        hots_text=hotspot.hots_title,
+        hots_target_scene_key=str(hotspot.target_prop_id) if hotspot.target_prop_id else None
     )
     db.add(nuevo_hotspot)
     db.commit()
     db.refresh(nuevo_hotspot)
     return {"status": "success", "message": "Hotspot guardado perfectamente", "id": nuevo_hotspot.hots_id}
+
+# 3. Editar/Actualizar un Hotspot existente
+@app.put("/api/hotspots/{hots_id}")
+def update_hotspot(hots_id: int, hotspot: HotspotCreate, db: Session = Depends(get_db)):
+    db_hotspot = db.query(HotspotDB).filter(HotspotDB.hots_id == hots_id).first()
+    if not db_hotspot:
+        raise HTTPException(status_code=404, detail="Hotspot no encontrado")
+    
+    db_hotspot.hots_scene_id = hotspot.prop_id
+    db_hotspot.hots_pitch = hotspot.hots_pitch
+    db_hotspot.hots_yaw = hotspot.hots_yaw
+    db_hotspot.hots_type = hotspot.hots_type
+    db_hotspot.hots_text = hotspot.hots_title
+    db_hotspot.hots_target_scene_key = str(hotspot.target_prop_id) if hotspot.target_prop_id else None
+    
+    db.commit()
+    db.refresh(db_hotspot)
+    return {"status": "success", "message": "Hotspot actualizado perfectamente"}
 
 # ----------------------------------------------------
 # 6. RUTAS DE INTERFAZ GRÁFICA (Vistas HTML)
