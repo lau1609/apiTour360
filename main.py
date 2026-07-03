@@ -6,11 +6,35 @@ from sqlalchemy import create_instance, create_engine, Column, Integer, Decimal,
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
-# 1. Configuración de Base de Datos MySQL
-# Cambia 'usuario', 'contraseña' y 'nombre_base_datos' por tus credenciales reales
-DATABASE_URL = "mysql+pymysql://usuario:contraseña@localhost/tour_virtual_db"
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-engine = create_engine(DATABASE_URL)
+SERVER_SOURCE = '' 
+
+if SERVER_SOURCE == 'local':
+    root_path = 'https://localhost/atlastest/'
+    db_name = "pueblost_bd"
+    db_user = "root"
+    db_pass = ""     
+    db_host = "localhost"
+else:
+    root_path = 'https://sichitur.org/' 
+    db_name = "u960560109_prueba"
+    db_user = "u960560109_test"
+    db_pass = "prueba.BD2026"
+    db_host = "localhost" 
+
+DATABASE_URL = f"mysql+pymysql://{db_user}:{db_pass}@{db_host}/{db_name}"
+
+# 4. Creamos el "equivalente" a tu objeto $connectMySql de mysqli
+engine = create_engine(
+    DATABASE_URL,
+    pool_recycle=3600, # Evita el error "MySQL server has gone away" en la VM
+    pool_pre_ping=True # Verifica que la conexión siga viva antes de usarla
+)
+
+# Creamos la fábrica de sesiones para que FastAPI interactúe con la BD
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
