@@ -53,13 +53,19 @@ class HotspotDB(Base):
     __tablename__ = "hotspots_tb"
     
     hots_id = Column(Integer, primary_key=True, index=True)
-    hots_scene_id = Column(Integer, nullable=False)  # Guarda el prop_id del lugar origen
+    hots_scene_id = Column(Integer, nullable=False)
     hots_pitch = Column(Numeric(5, 2), nullable=False)
     hots_yaw = Column(Numeric(5, 2), nullable=False)
-    hots_type = Column(Enum('scene', 'info'), nullable=False)
-    hots_text = Column(String(255), nullable=False)  # El título/descripción
-    hots_target_scene_key = Column(String(50), nullable=True)  # ID o slug del destino si es tipo 'scene'
 
+    hots_type = Column(Enum('scene', 'info', name="hots_type_enum"), nullable=False)
+    hots_text = Column(String(255), nullable=False)
+    hots_target_scene_key = Column(String(50), nullable=True)
+
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Error creando tablas: {e}")
+    
 # Crear tablas automáticamente en la base de datos si no existen
 Base.metadata.create_all(bind=engine)
 
