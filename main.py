@@ -46,7 +46,7 @@ class PropertyDB(Base):
 class SceneDB(Base):
     __tablename__ = "scenes_tb"
     sce_id = Column(Integer, primary_key=True, index=True)
-    sce_prop_id = Column(Integer, ForeignKey("properties_tb".prop_id, ondelete="CASCADE"), nullable=False)
+    sce_prop_id = Column(Integer, ForeignKey("properties_tb.prop_id", ondelete="CASCADE"), nullable=False)
     sce_key = Column(String(50), nullable=False)
     sce_title = Column(String(100), nullable=False)
     sce_panorama_url = Column(String(500), nullable=False)
