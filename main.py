@@ -213,6 +213,44 @@ def update_hotspot(hots_id: int, hotspot: HotspotCreate, db: Session = Depends(g
     db.commit()
     return {"status": "success"}
 
+
+@app.get("/api/tours/{prop_slug}")
+def get_tour_by_slug(prop_slug: str, db: Session = Depends(get_db)):
+    # 1. Buscar la propiedad por su slug único
+    propiedad = db.query(PropertyDB).filter(PropertyDB.prop_slug == prop_slug.lower().strip()).first()
+    if not propiedad:
+        raise HTTPException(status_code=404, detail="El recorrido no existe.")
+    
+    # 2. Obtener todas las escenas vinculadas a esa propiedad
+    escenas = db.query(SceneDB).filter(SceneDB.sce_prop_id == propiedad.prop_id).all()
+    
+    # 3. Construir la estructura que necesita un visor 360 (como Pannellum)
+    scenes_dict = {}
+    for s in escenas:
+        # Obtener los hotspots de cada escena
+        hotspots = db.query(HotspotDB).filter(HotspotDB.hots_scene_id == s.sce_id).all()
+        
+        scenes_dict[s.sce_key] = {
+            "title": s.sce_title,
+            "panorama": s.sce_panorama_url,
+            "hotSpotted": s.sce_id, # Guardamos el ID por si se ocupa en JS
+            "hotSpots": [
+                {
+                    "pitch": float(h.hots_pitch),
+                    "yaw": float(h.hots_yaw),
+                    "type": h.hots_type,
+                    "text": h.hots_text,
+                    "targetScene": h.hots_target_scene_key if h.hots_type == 'scene' else None
+                } for h in hotspots
+            ]
+        }
+        
+    return {
+        "prop_name": propiedad.prop_name,
+        "firstScene": escenas[0].sce_key if escenas else None,
+        "scenes": scenes_dict
+    }
+
 @app.delete("/api/hotspots/{hots_id}")
 def delete_hotspot(hots_id: int, db: Session = Depends(get_db)):
     h = db.query(HotspotDB).filter(HotspotDB.hots_id == hots_id).first()
