@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker, Session
 # ----------------------------------------------------
 # 1. CONEXIÓN 
 # ----------------------------------------------------
-SERVER_SOURCE = 'local'  # Cambia a 'production' o usa os.getenv en Coolify
+SERVER_SOURCE = ''  # Cambia a 'production' o usa os.getenv en Coolify
 
 if SERVER_SOURCE == 'local':
     root_path = 'https://localhost/atlastest/'
