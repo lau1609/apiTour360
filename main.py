@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, Numeric, String, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from typing import Optional
 
 # ----------------------------------------------------
 # 1. CONEXIÓN 
@@ -83,7 +84,7 @@ class HotspotCreate(BaseModel):
     hots_type: str
     hots_pitch: float
     hots_yaw: float
-    target_prop_id: int = None
+    target_prop_id: Optional[int] = None
 
 def get_db():
     db = SessionLocal()
