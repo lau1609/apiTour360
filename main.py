@@ -9,6 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
+from datetime import datetime
 
 # ----------------------------------------------------
 # 1. CONEXIÓN 
@@ -158,8 +159,12 @@ async def create_scene(
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
 
+    sce_key = f"scene_{uuid.uuid4().hex[:8]}"
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
     extension = os.path.splitext(file.filename)[1]
-    unique_filename = f"pano_{uuid.uuid4().hex}{extension}"
+    unique_filename = f"{timestamp}_{sce_key}{extension}"
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
@@ -169,7 +174,6 @@ async def create_scene(
     except Exception:
         raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
 
-    sce_key = f"scene_{uuid.uuid4().hex[:8]}"
     panorama_url = f"images/{unique_filename}" 
 
     nueva = SceneDB(
