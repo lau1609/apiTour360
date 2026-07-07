@@ -1,6 +1,6 @@
 import os
 import uuid
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -144,20 +144,46 @@ def delete_property(prop_id: int, db: Session = Depends(get_db)):
 def get_scenes_by_property(prop_id: int, db: Session = Depends(get_db)):
     return db.query(SceneDB).filter(SceneDB.sce_prop_id == prop_id).all()
 
+
+IMAGES_DIR = os.path.join(os.path.dirname(__file__), "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
 @app.post("/api/scenes")
-def create_scene(scene: SceneCreate, db: Session = Depends(get_db)):
-    if not scene.sce_key:
-        scene.sce_key = f"scene_{uuid.uuid4().hex[:8]}"
+async def create_scene(
+    sce_prop_id: int = Form(...),
+    sce_title: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
+
+    extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"pano_{uuid.uuid4().hex}{extension}"
+    file_path = os.path.join(IMAGES_DIR, unique_filename)
+
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+    except Exception:
+        raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
+
+    sce_key = f"scene_{uuid.uuid4().hex[:8]}"
+    panorama_url = f"images/{unique_filename}" 
+
     nueva = SceneDB(
-        sce_prop_id=scene.sce_prop_id,
-        sce_key=scene.sce_key,
-        sce_title=scene.sce_title,
-        sce_panorama_url=scene.sce_panorama_url
+        sce_prop_id=sce_prop_id,
+        sce_key=sce_key,
+        sce_title=sce_title,
+        sce_panorama_url=panorama_url
     )
+    
     db.add(nueva)
     db.commit()
     db.refresh(nueva)
     return {"status": "success", "data": nueva}
+    
 
 @app.delete("/api/scenes/{sce_id}")
 def delete_scene(sce_id: int, db: Session = Depends(get_db)):
