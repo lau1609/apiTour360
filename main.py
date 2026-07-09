@@ -168,10 +168,14 @@ async def create_scene(
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        await file.seek(0)
+        
+        with open(file_path, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                f.write(chunk)
+                
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error físico al escribir en el servidor: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al escribir archivo físico: {str(e)}")
     finally:
         await file.close()
 
@@ -193,7 +197,7 @@ async def create_scene(
         db.rollback()
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"Error en BD: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en Base de Datos: {str(e)}")
     
 
 @app.patch("/api/scenes/{sce_id}/panorama")
@@ -215,10 +219,14 @@ async def update_scene_panorama(
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        await file.seek(0)
+        
+        with open(file_path, "wb") as f:
+            while chunk := await file.read(1024 * 1024):
+                f.write(chunk)
+                
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error físico al actualizar archivo: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error físico al actualizar el archivo: {str(e)}")
     finally:
         await file.close()
 
@@ -235,6 +243,8 @@ async def update_scene_panorama(
     db.refresh(escena)
 
     return {"status": "success", "sce_panorama_url": unique_filename}
+
+
     
 @app.delete("/api/scenes/{sce_id}")
 def delete_scene(sce_id: int, db: Session = Depends(get_db)):
