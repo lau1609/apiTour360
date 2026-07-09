@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from datetime import datetime
+import shutil
 
 # ----------------------------------------------------
 # 1. CONEXIÓN 
@@ -153,7 +154,7 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 async def create_scene(
     sce_prop_id: int = Form(...),
     sce_title: str = Form(...),
-    file: UploadFile = File(...),  
+    file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
     if not file.content_type.startswith("image/"):
@@ -167,11 +168,12 @@ async def create_scene(
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
-        contents = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(contents)
-    except Exception:
-        raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error físico al escribir en el servidor: {str(e)}")
+    finally:
+        await file.close()
 
     panorama_url = unique_filename 
 
@@ -191,7 +193,7 @@ async def create_scene(
         db.rollback()
         if os.path.exists(file_path):
             os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"Error al registrar en BD: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error en BD: {str(e)}")
     
 
 @app.patch("/api/scenes/{sce_id}/panorama")
@@ -213,11 +215,12 @@ async def update_scene_panorama(
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
-        contents = await file.read()
-        with open(file_path, "wb") as f:
-            f.write(contents)
-    except Exception:
-        raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error físico al actualizar archivo: {str(e)}")
+    finally:
+        await file.close()
 
     if escena.sce_panorama_url:
         old_file_path = os.path.join(IMAGES_DIR, escena.sce_panorama_url)
@@ -225,7 +228,7 @@ async def update_scene_panorama(
             try:
                 os.remove(old_file_path)
             except Exception:
-                pass 
+                pass
 
     escena.sce_panorama_url = unique_filename
     db.commit()
