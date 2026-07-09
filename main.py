@@ -153,17 +153,16 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 async def create_scene(
     sce_prop_id: int = Form(...),
     sce_title: str = Form(...),
-    file: UploadFile = File(...),
+    file: UploadFile = File(...),  
     db: Session = Depends(get_db)
 ):
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
 
     sce_key = f"scene_{uuid.uuid4().hex[:8]}"
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     extension = os.path.splitext(file.filename)[1]
+    
     unique_filename = f"{timestamp}_{sce_key}{extension}"
     file_path = os.path.join(IMAGES_DIR, unique_filename)
 
@@ -174,7 +173,7 @@ async def create_scene(
     except Exception:
         raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
 
-    panorama_url = f"images/{unique_filename}" 
+    panorama_url = unique_filename 
 
     nueva = SceneDB(
         sce_prop_id=sce_prop_id,
@@ -183,10 +182,16 @@ async def create_scene(
         sce_panorama_url=panorama_url
     )
     
-    db.add(nueva)
-    db.commit()
-    db.refresh(nueva)
-    return {"status": "success", "data": nueva}
+    try:
+        db.add(nueva)
+        db.commit()
+        db.refresh(nueva)
+        return {"status": "success", "data": nueva}
+    except Exception as e:
+        db.rollback()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"Error al registrar en BD: {str(e)}")
     
 
 @app.delete("/api/scenes/{sce_id}")
