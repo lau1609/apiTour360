@@ -11,7 +11,16 @@ from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from datetime import datetime
 import shutil
+from ftplib import FTP
+import io
 
+# ----------------------------------------------------
+# Datos de conexión FTP
+# ----------------------------------------------------
+FTP_HOST = "ftp.sichitur.org" 
+FTP_USER = "u960560109.userFTP"
+FTP_PASS = "FTP.sichitur2025!"
+FTP_DIR  = "/public_html/wati/images" 
 # ----------------------------------------------------
 # 1. CONEXIÓN 
 # ----------------------------------------------------
@@ -94,6 +103,19 @@ def get_db():
     finally:
         db.close()
 
+def subir_archivo_al_ftp(file_bytes: bytes, filename: str):
+    """Conecta al hosting tradicional y deposita el archivo binario con calidad intacta"""
+    try:
+        with FTP(FTP_HOST) as ftp:
+            ftp.login(user=FTP_USER, passwd=FTP_PASS)
+            ftp.cwd(FTP_DIR)
+            
+            file_obj = io.BytesIO(file_bytes)
+            
+            ftp.storbinary(f"STOR {filename}", file_obj)
+    except Exception as e:
+        raise RuntimeError(f"Fallo en la transferencia FTP al servidor web: {str(e)}")
+
 # ----------------------------------------------------
 # 4. INICIALIZACIÓN Y MIDDLEWARES
 # ----------------------------------------------------
@@ -158,46 +180,34 @@ async def create_scene(
     db: Session = Depends(get_db)
 ):
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
+        raise HTTPException(status_code=400, detail="Debe ser una imagen.")
 
     sce_key = f"scene_{uuid.uuid4().hex[:8]}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     extension = os.path.splitext(file.filename)[1]
-    
     unique_filename = f"{timestamp}_{sce_key}{extension}"
-    file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
         await file.seek(0)
+        file_bytes = await file.read()
         
-        with open(file_path, "wb") as f:
-            while chunk := await file.read(1024 * 1024):
-                f.write(chunk)
-                
+        subir_archivo_al_ftp(file_bytes, unique_filename)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al escribir archivo físico: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         await file.close()
-
-    panorama_url = unique_filename 
 
     nueva = SceneDB(
         sce_prop_id=sce_prop_id,
         sce_key=sce_key,
         sce_title=sce_title,
-        sce_panorama_url=panorama_url
+        sce_panorama_url=unique_filename
     )
+    db.add(nueva)
+    db.commit()
+    db.refresh(nueva)
+    return {"status": "success", "data": nueva}
     
-    try:
-        db.add(nueva)
-        db.commit()
-        db.refresh(nueva)
-        return {"status": "success", "data": nueva}
-    except Exception as e:
-        db.rollback()
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        raise HTTPException(status_code=500, detail=f"Error en Base de Datos: {str(e)}")
     
 
 @app.patch("/api/scenes/{sce_id}/panorama")
@@ -207,41 +217,29 @@ async def update_scene_panorama(
     db: Session = Depends(get_db)
 ):
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
+        raise HTTPException(status_code=400, detail="Debe ser una imagen.")
 
     escena = db.query(SceneDB).filter(SceneDB.sce_id == sce_id).first()
-    if not escena:
-        raise HTTPException(status_code=404, detail="La escena no existe.")
+    if not escena: raise HTTPException(status_code=404, detail="No existe.")
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{timestamp}_update_sce_{sce_id}{extension}"
-    file_path = os.path.join(IMAGES_DIR, unique_filename)
 
     try:
         await file.seek(0)
+        file_bytes = await file.read()
         
-        with open(file_path, "wb") as f:
-            while chunk := await file.read(1024 * 1024):
-                f.write(chunk)
-                
+        subir_archivo_al_ftp(file_bytes, unique_filename)
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error físico al actualizar el archivo: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         await file.close()
-
-    if escena.sce_panorama_url:
-        old_file_path = os.path.join(IMAGES_DIR, escena.sce_panorama_url)
-        if os.path.exists(old_file_path):
-            try:
-                os.remove(old_file_path)
-            except Exception:
-                pass
 
     escena.sce_panorama_url = unique_filename
     db.commit()
     db.refresh(escena)
-
     return {"status": "success", "sce_panorama_url": unique_filename}
 
 
