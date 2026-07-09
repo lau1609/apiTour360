@@ -194,6 +194,45 @@ async def create_scene(
         raise HTTPException(status_code=500, detail=f"Error al registrar en BD: {str(e)}")
     
 
+@app.patch("/api/scenes/{sce_id}/panorama")
+async def update_scene_panorama(
+    sce_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo cargado debe ser una imagen.")
+
+    escena = db.query(SceneDB).filter(SceneDB.sce_id == sce_id).first()
+    if not escena:
+        raise HTTPException(status_code=404, detail="La escena no existe.")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{timestamp}_update_sce_{sce_id}{extension}"
+    file_path = os.path.join(IMAGES_DIR, unique_filename)
+
+    try:
+        contents = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(contents)
+    except Exception:
+        raise HTTPException(status_code=500, detail="No se pudo escribir el archivo en el servidor.")
+
+    if escena.sce_panorama_url:
+        old_file_path = os.path.join(IMAGES_DIR, escena.sce_panorama_url)
+        if os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except Exception:
+                pass 
+
+    escena.sce_panorama_url = unique_filename
+    db.commit()
+    db.refresh(escena)
+
+    return {"status": "success", "sce_panorama_url": unique_filename}
+    
 @app.delete("/api/scenes/{sce_id}")
 def delete_scene(sce_id: int, db: Session = Depends(get_db)):
     s = db.query(SceneDB).filter(SceneDB.sce_id == sce_id).first()
