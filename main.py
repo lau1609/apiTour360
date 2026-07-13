@@ -327,7 +327,7 @@ def get_tour_by_slug(prop_slug: str, db: Session = Depends(get_db)):
                     "yaw": float(h.hots_yaw),
                     "type": h.hots_type,
                     "text": h.hots_text,
-                    "targetScene": h.hots_target_scene_key if h.hots_type == 'scene' else None
+                    "sceneId": h.hots_target_scene_key if h.hots_type == 'scene' else None
                 } for h in hotspots
             ]
         }
