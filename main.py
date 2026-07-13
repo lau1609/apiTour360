@@ -186,7 +186,8 @@ async def create_scene(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{timestamp}_{sce_key}{extension}"
-
+    panorama_url_db = f"images/{unique_filename}"
+    
     try:
         await file.seek(0)
         file_bytes = await file.read()
@@ -201,7 +202,7 @@ async def create_scene(
         sce_prop_id=sce_prop_id,
         sce_key=sce_key,
         sce_title=sce_title,
-        sce_panorama_url=unique_filename
+        sce_panorama_url=panorama_url_db
     )
     db.add(nueva)
     db.commit()
@@ -225,6 +226,7 @@ async def update_scene_panorama(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{timestamp}_update_sce_{sce_id}{extension}"
+    panorama_url_db = f"images/{unique_filename}"
 
     try:
         await file.seek(0)
@@ -237,10 +239,10 @@ async def update_scene_panorama(
     finally:
         await file.close()
 
-    escena.sce_panorama_url = unique_filename
+    escena.sce_panorama_url = panorama_url_db
     db.commit()
     db.refresh(escena)
-    return {"status": "success", "sce_panorama_url": unique_filename}
+    return {"status": "success", "sce_panorama_url": panorama_url_db}
 
 
     
